@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>EXITUS – Inactive Tabs</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="prompt-body">
+  <div class="prompt-layout">
+    <!-- Header -->
+    <header class="prompt-header">
+      <div class="prompt-header-left">
+        <img src="icons/icon16.png" alt="icon" class="title-icon" />
+        <h2>Inactive Tabs</h2>
+        <span id="tabCount" class="tab-count-badge">0</span>
+      </div>
+      <div class="prompt-header-right">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search tabs…" />
+      </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="prompt-toolbar">
+      <div class="toolbar-left">
+        <button id="selectAll" class="secondary tiny">Select All</button>
+        <button id="selectNone" class="secondary tiny">Select None</button>
+        <span class="toolbar-divider"></span>
+        <select id="sortSelect" class="sort-select">
+          <option value="domain">Group by domain</option>
+          <option value="time">Sort by inactive time</option>
+          <option value="title">Sort by title</option>
+        </select>
+      </div>
+      <div class="toolbar-right">
+        <span class="hint-text">Enter = close · Esc = snooze all</span>
+      </div>
+    </div>
+
+    <!-- Scrollable list -->
+    <form id="tabsForm">
+      <div class="list-container" id="listContainer">
+        <div id="tabsList"></div>
+      </div>
+
+      <!-- Footer -->
+      <div class="prompt-footer">
+        <div class="footer-info">
+          <span id="selectedInfo">0 selected</span>
+        </div>
+        <div class="prompt-buttons">
+          <button type="submit" id="confirmButton">Close Selected</button>
+          <button type="button" id="cancelButton" class="secondary">Keep All (Snooze)</button>
+        </div>
+      </div>
+
+      <p id="promptStatusMessage"></p>
+    </form>
+  </div>
+
+  <script src="prompt.js"></script>
+</body>
+</html>

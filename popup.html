@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>EXITUS Settings</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="popup-body">
+  <div class="container popup-container">
+    <h2 class="popup-title">
+      <img src="icons/icon48.png" alt="icon" class="title-icon" />
+      EXITUS: Tab closer
+    </h2>
+
+    <!-- Enable -->
+    <div class="setting">
+      <label class="setting-title" for="enabled">Enable Extension:</label>
+      <label class="toggle">
+        <input type="checkbox" id="enabled" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <!-- Dark Mode -->
+    <div class="setting">
+      <label class="setting-title" for="themeSwitch">Dark Mode:</label>
+      <label class="toggle">
+        <input type="checkbox" id="themeSwitch" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <!-- Timeout -->
+    <div class="setting">
+      <label class="setting-title" for="timeout">Timeout (min):</label>
+      <input type="number" id="timeout" min="1" value="15" maxlength="4" />
+    </div>
+
+    <!-- Snooze Multiplier -->
+    <div class="setting">
+      <label class="setting-title" for="snoozeMult">Snooze multiplier:</label>
+      <select id="snoozeMult" class="setting-select">
+        <option value="2">2× timeout</option>
+        <option value="3" selected>3× timeout</option>
+        <option value="5">5× timeout</option>
+        <option value="10">10× timeout</option>
+      </select>
+    </div>
+
+    <!-- Whitelist -->
+    <div class="setting-section">
+      <label class="setting-title">Whitelisted Domains:</label>
+      <p class="setting-hint">Tabs from these domains will never be flagged.</p>
+      <div class="whitelist-input-row">
+        <input type="text" id="whitelistInput" placeholder="e.g. github.com" class="whitelist-input" />
+        <button type="button" id="addWhitelist" class="secondary tiny">Add</button>
+      </div>
+      <ul id="whitelistItems" class="whitelist-list"></ul>
+    </div>
+
+    <div class="popup-actions">
+      <button id="saveButton">Save Settings</button>
+    </div>
+
+    <p id="statusMessage"></p>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
