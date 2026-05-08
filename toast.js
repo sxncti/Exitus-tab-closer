@@ -3,9 +3,19 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   /* ---- apply saved theme ---- */
-  chrome.storage.local.get('theme', res => {
+  chrome.storage.local.get(['theme', '_candidates', 'timeoutMinutes'], res => {
     if ((res.theme ?? 'light') === 'dark')
       document.documentElement.classList.add('dark');
+
+    // Load candidates from storage
+    candidates = res._candidates || [];
+    updateDisplay();
+
+    // Display timeout
+    const min = res.timeoutMinutes ?? 60;
+    if (min < 60) hoursText.textContent = `${min}m`;
+    else if (min % 60 === 0) hoursText.textContent = `${min / 60}h`;
+    else hoursText.textContent = `${Math.floor(min / 60)}h ${min % 60}m`;
   });
 
   const dismissBtn = document.getElementById('dismissBtn');
@@ -17,26 +27,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let candidates = [];
 
-  /* ---- load candidates from URL params ---- */
-  try {
-    const p = new URLSearchParams(location.search).get('tabs');
-    if (p) candidates = JSON.parse(decodeURIComponent(p));
-  } catch (e) { console.error(e); }
-
-  /* ---- load timeout for display ---- */
-  chrome.storage.local.get('timeoutMinutes', res => {
-    const min = res.timeoutMinutes ?? 15;
-    if (min < 60) hoursText.textContent = `${min}m`;
-    else if (min % 60 === 0) hoursText.textContent = `${min / 60}h`;
-    else hoursText.textContent = `${Math.floor(min / 60)}h ${min % 60}m`;
-  });
-
   function updateDisplay() {
     const n = candidates.length;
     countText.textContent = `${n} tab${n !== 1 ? 's' : ''}`;
     inactiveCount.textContent = n;
   }
-  updateDisplay();
 
   /* ---- receive more candidates ---- */
   chrome.runtime.onMessage.addListener((msg, _, send) => {
@@ -51,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ---- Close All ---- */
   closeAllBtn.addEventListener('click', () => {
+    dismissed = true;
     const allIds = candidates.map(t => t.id);
     chrome.runtime.sendMessage({
       action: 'closeTabs',
@@ -61,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ---- View Details (open full prompt) ---- */
   viewMoreBtn.addEventListener('click', () => {
+    dismissed = true;
     chrome.runtime.sendMessage({
       action: 'openDetailedPrompt',
       tabs: candidates
@@ -69,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ---- Dismiss ---- */
   dismissBtn.addEventListener('click', () => {
+    dismissed = true;
     const allIds = candidates.map(t => t.id);
     chrome.runtime.sendMessage({
       action: 'promptCancelled',
@@ -81,15 +79,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') dismissBtn.click();
   });
 
-  /* ---- interaction ping ---- */
-  const ping = () => chrome.runtime.sendMessage({ action: 'promptInteracted' });
-  window.addEventListener('focus', ping);
-
   /* ---- beforeunload guard ---- */
   let dismissed = false;
-  dismissBtn.addEventListener('click', () => { dismissed = true; });
-  closeAllBtn.addEventListener('click', () => { dismissed = true; });
-  viewMoreBtn.addEventListener('click', () => { dismissed = true; });
   window.addEventListener('beforeunload', () => {
     if (!dismissed) {
       const allIds = candidates.map(t => t.id);

@@ -1,4 +1,4 @@
-// prompt.js – v4.0 (domain groups, search, sort, keyboard shortcuts)
+// prompt.js – v4.1 (domain groups, search, sort, keyboard shortcuts)
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -158,18 +158,16 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedInfoEl.textContent = `${n} of ${all.length} selected`;
   }
 
-  /* ---- initial load ---- */
-  try {
-    const p = new URLSearchParams(location.search).get('tabs');
-    if (p) JSON.parse(decodeURIComponent(p)).forEach(addTab);
-  } catch (e) { console.error(e); }
-
-  if (!tabs.length) {
-    status.textContent = 'No candidate tabs.';
-    confirmBt.disabled = true;
-    cancelBt.textContent = 'Close';
-  }
-  render();
+  /* ---- initial load from storage ---- */
+  chrome.storage.local.get('_candidates', res => {
+    (res._candidates || []).forEach(addTab);
+    if (!tabs.length) {
+      status.textContent = 'No candidate tabs.';
+      confirmBt.disabled = true;
+      cancelBt.textContent = 'Close';
+    }
+    render();
+  });
 
   /* ---- events ---- */
   searchInput.addEventListener('input', render);

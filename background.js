@@ -274,18 +274,22 @@ async function showToast(tabs) {
   for (const t of existing) try { await chrome.windows.remove(t.windowId); } catch {}
   pWin = pTab = null;
 
+  // Store candidates in storage (avoids URL length limits)
+  await chrome.storage.local.set({ _candidates: tabs });
+
   // Position: bottom-right of the screen
-  const displays = await chrome.system.display.getInfo();
-  const primary = displays[0] || { workArea: { width: 1920, height: 1080, left: 0, top: 0 } };
-  const wa = primary.workArea;
-  const toastW = 340, toastH = 200;
-  const left = wa.left + wa.width - toastW - 20;
-  const top = wa.top + wa.height - toastH - 20;
+  let left = 1560, top = 860;
+  try {
+    const displays = await chrome.system.display.getInfo();
+    const wa = (displays[0] || {}).workArea || { width: 1920, height: 1080, left: 0, top: 0 };
+    left = wa.left + wa.width - 360 - 16;
+    top = wa.top + wa.height - 180 - 16;
+  } catch {}
 
   const w = await chrome.windows.create({
-    url: `${TOAST}?tabs=${encodeURIComponent(JSON.stringify(tabs))}`,
+    url: TOAST,
     type: 'popup',
-    width: toastW, height: toastH,
+    width: 360, height: 180,
     left, top,
     focused: false
   });
@@ -298,8 +302,11 @@ async function openFullPrompt(tabs) {
   if (pWin) try { await chrome.windows.remove(pWin); } catch {}
   pWin = pTab = null;
 
+  // Store candidates in storage
+  await chrome.storage.local.set({ _candidates: tabs });
+
   const w = await chrome.windows.create({
-    url: `${PROMPT}?tabs=${encodeURIComponent(JSON.stringify(tabs))}`,
+    url: PROMPT,
     type: 'popup', width: 700, height: 550
   });
   if (w?.tabs?.length) { pWin = w.id; pTab = w.tabs[0].id; }
