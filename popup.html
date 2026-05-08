@@ -32,8 +32,20 @@
 
     <!-- Timeout -->
     <div class="setting">
-      <label class="setting-title" for="timeout">Timeout (min):</label>
-      <input type="number" id="timeout" min="1" value="15" maxlength="4" />
+      <label class="setting-title" for="timeout">Inactivity (min):</label>
+      <input type="number" id="timeout" min="1" value="60" maxlength="4" />
+    </div>
+
+    <!-- Tab Threshold -->
+    <div class="setting">
+      <label class="setting-title" for="tabThreshold">Min tabs to trigger:</label>
+      <input type="number" id="tabThreshold" min="1" value="20" maxlength="3" />
+    </div>
+
+    <!-- Max Daily Popups -->
+    <div class="setting">
+      <label class="setting-title" for="maxDaily">Max popups/day:</label>
+      <input type="number" id="maxDaily" min="1" max="20" value="3" maxlength="2" />
     </div>
 
     <!-- Snooze Multiplier -->

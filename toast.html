@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>EXITUS</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="toast-body">
+  <div class="toast-container">
+    <div class="toast-header">
+      <img src="icons/icon16.png" alt="" class="toast-icon" />
+      <span class="toast-title">EXITUS</span>
+      <span id="inactiveCount" class="toast-badge">0</span>
+      <button id="dismissBtn" class="toast-close" title="Dismiss">&times;</button>
+    </div>
+
+    <p class="toast-message">
+      <span id="countText">0 tabs</span> inactive for more than <span id="hoursText">1h</span>
+    </p>
+
+    <div class="toast-actions">
+      <button id="closeAllBtn" class="toast-btn toast-btn-primary">Close All Inactive</button>
+      <button id="viewMoreBtn" class="toast-btn toast-btn-secondary">View Details</button>
+    </div>
+  </div>
+
+  <script src="toast.js"></script>
+</body>
+</html>

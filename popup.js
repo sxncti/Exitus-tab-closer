@@ -1,16 +1,18 @@
-// popup.js – v4.0 (whitelist, snooze mult, dark mode instant)
+// popup.js – v4.1 (threshold, max daily, whitelist, snooze, dark mode)
 
 document.addEventListener('DOMContentLoaded', () => {
 
-  const enabledCb   = document.getElementById('enabled');
-  const timeoutInp  = document.getElementById('timeout');
-  const themeCb     = document.getElementById('themeSwitch');
+  const enabledCb     = document.getElementById('enabled');
+  const timeoutInp    = document.getElementById('timeout');
+  const thresholdInp  = document.getElementById('tabThreshold');
+  const maxDailyInp   = document.getElementById('maxDaily');
+  const themeCb       = document.getElementById('themeSwitch');
   const snoozeMultSel = document.getElementById('snoozeMult');
-  const saveBtn     = document.getElementById('saveButton');
-  const statusMsg   = document.getElementById('statusMessage');
-  const wlInput     = document.getElementById('whitelistInput');
-  const wlAddBtn    = document.getElementById('addWhitelist');
-  const wlList      = document.getElementById('whitelistItems');
+  const saveBtn       = document.getElementById('saveButton');
+  const statusMsg     = document.getElementById('statusMessage');
+  const wlInput       = document.getElementById('whitelistInput');
+  const wlAddBtn      = document.getElementById('addWhitelist');
+  const wlList        = document.getElementById('whitelistItems');
 
   let whitelist = [];
 
@@ -25,7 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
         <button type="button" class="wl-remove secondary tiny" data-idx="${i}">✕</button>`;
       wlList.append(li);
     });
-    // attach remove handlers
     wlList.querySelectorAll('.wl-remove').forEach(btn => {
       btn.onclick = () => {
         whitelist.splice(+btn.dataset.idx, 1);
@@ -35,17 +36,22 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ----- load config ----- */
-  chrome.storage.local.get(['timeoutMinutes', 'enabled', 'theme', 'whitelist', 'snoozeMult'], cfg => {
-    enabledCb.checked = cfg.enabled ?? true;
-    timeoutInp.value = cfg.timeoutMinutes ?? 15;
-    snoozeMultSel.value = String(cfg.snoozeMult ?? 3);
-    whitelist = cfg.whitelist ?? [];
-    renderWhitelist();
+  chrome.storage.local.get(
+    ['timeoutMinutes', 'enabled', 'theme', 'whitelist', 'snoozeMult', 'tabThreshold', 'maxDaily'],
+    cfg => {
+      enabledCb.checked = cfg.enabled ?? true;
+      timeoutInp.value = cfg.timeoutMinutes ?? 60;
+      thresholdInp.value = cfg.tabThreshold ?? 20;
+      maxDailyInp.value = cfg.maxDaily ?? 3;
+      snoozeMultSel.value = String(cfg.snoozeMult ?? 3);
+      whitelist = cfg.whitelist ?? [];
+      renderWhitelist();
 
-    const theme = cfg.theme ?? 'light';
-    themeCb.checked = theme === 'dark';
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  });
+      const theme = cfg.theme ?? 'light';
+      themeCb.checked = theme === 'dark';
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+    }
+  );
 
   /* ----- Dark Mode toggle (instant) ----- */
   themeCb.addEventListener('change', () => {
@@ -75,15 +81,31 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ----- Save ----- */
   saveBtn.addEventListener('click', () => {
     const t = parseInt(timeoutInp.value, 10);
+    const th = parseInt(thresholdInp.value, 10);
+    const md = parseInt(maxDailyInp.value, 10);
+
     if (isNaN(t) || t < 1) {
-      statusMsg.textContent = 'Invalid timeout value';
+      statusMsg.textContent = 'Invalid timeout';
       statusMsg.style.color = '#ef4444';
       return;
     }
+    if (isNaN(th) || th < 1) {
+      statusMsg.textContent = 'Invalid tab threshold';
+      statusMsg.style.color = '#ef4444';
+      return;
+    }
+    if (isNaN(md) || md < 1) {
+      statusMsg.textContent = 'Invalid max daily value';
+      statusMsg.style.color = '#ef4444';
+      return;
+    }
+
     const settings = {
       timeoutMinutes: t,
       enabled: enabledCb.checked,
       snoozeMult: parseInt(snoozeMultSel.value, 10),
+      tabThreshold: th,
+      maxDaily: md,
       whitelist: whitelist
     };
 

@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "EXITUS: Tab closer",
-  "version": "4.0",
-  "description": "Asks for confirmation before closing inactive tabs.",
-  "permissions": ["tabs", "storage", "alarms", "windows"],
+  "version": "4.1",
+  "description": "Non-invasive tab manager — quietly prompts you to close inactive tabs.",
+  "permissions": ["tabs", "storage", "alarms", "windows", "system.display"],
   "background": { "service_worker": "background.js" },
   "action": {
     "default_popup": "popup.html",

@@ -135,6 +135,29 @@ button:disabled{opacity:.5;cursor:not-allowed}
 #statusMessage,
 #promptStatusMessage{text-align:center;margin-top:12px;font-size:.85rem;color:var(--text)}
 
+/* ========== TOAST (corner notification) ========== */
+.toast-body{padding:0;margin:0;height:100vh;overflow:hidden;background:transparent}
+.toast-container{
+  display:flex;flex-direction:column;height:100vh;
+  background:var(--card-bg);border-radius:var(--radius-md);
+  box-shadow:0 8px 32px rgba(0,0,0,.18);
+  padding:16px;gap:12px;
+  border:1px solid var(--divider);
+}
+.toast-header{display:flex;align-items:center;gap:8px}
+.toast-icon{width:16px;height:16px}
+.toast-title{font-weight:700;font-size:.9rem;color:var(--text)}
+.toast-badge{background:var(--badge-bg);color:var(--badge-text);font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:auto}
+.toast-close{margin-left:8px;background:none!important;padding:0!important;font-size:1.2rem;color:var(--text-sec);line-height:1;cursor:pointer;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:4px}
+.toast-close:hover{background:var(--secondary-btn)!important;color:var(--text)}
+.toast-message{margin:0;font-size:.82rem;color:var(--text-sec);line-height:1.4}
+.toast-actions{display:flex;gap:8px;margin-top:auto}
+.toast-btn{flex:1;padding:8px 12px;font-size:.8rem;font-weight:600;border:none;border-radius:var(--radius-sm);cursor:pointer;transition:background .15s}
+.toast-btn-primary{background:var(--blue);color:#fff}
+.toast-btn-primary:hover{background:var(--blue-hover)}
+.toast-btn-secondary{background:var(--secondary-btn);color:var(--text)}
+.toast-btn-secondary:hover{background:var(--secondary-btn-hover)}
+
 /* ---------- scrollbar ---------- */
 .list-container::-webkit-scrollbar{width:6px}
 .list-container::-webkit-scrollbar-track{background:transparent}

@@ -1,22 +1,27 @@
-/* EXITUS – Tab closer  |  v4.0
- * • Enterprise-grade: whitelist, badge, configurable snooze
- * • Service-worker resilient: all state persisted
- * • Debounced scan, deduplication, domain awareness
+/* EXITUS – Tab closer  |  v4.1
+ * • Non-invasive: small toast in corner, full prompt only on "View Details"
+ * • Tab threshold: only triggers when open tabs >= threshold
+ * • Daily limit: max N popups per day (resets at midnight)
+ * • Service-worker resilient, badge, whitelist, configurable snooze
  */
 
 const NAME = 'inactiveTabCheck';
-const DEF_MIN = 15;
+const DEF_MIN = 60;
 const DEF_SNOOZE_MULT = 3;
+const DEF_THRESHOLD = 20;
+const DEF_MAX_DAILY = 3;
 const DEB_MS = 30_000;
+const TOAST = chrome.runtime.getURL('toast.html');
 const PROMPT = chrome.runtime.getURL('prompt.html');
-const COOLDOWN = 5 * 60_000;
 
 let timeoutMin = DEF_MIN, limitMs = DEF_MIN * 60_000, enabled = true;
 let snoozeMult = DEF_SNOOZE_MULT;
+let tabThreshold = DEF_THRESHOLD;
+let maxDaily = DEF_MAX_DAILY;
 let whitelist = [];
 let lastActive = {}, snoozed = {}, pending = [];
 let pWin = null, pTab = null;
-let lastInteraction = 0;
+let popupsToday = 0, lastPopupDate = '';
 let scanTimer = null;
 
 /* ---------- persist helpers ---------- */
@@ -24,16 +29,26 @@ function saveState() {
   chrome.storage.local.set({
     snoozedUntil: snoozed,
     lastActiveTimes: lastActive,
-    lastInteractionTS: lastInteraction,
-    pendingTabs: pending
+    pendingTabs: pending,
+    popupsToday, lastPopupDate
   });
 }
-function saveInteraction() {
-  lastInteraction = Date.now();
-  chrome.storage.local.set({ lastInteractionTS: lastInteraction });
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
 }
+
+function checkDailyReset() {
+  const today = todayStr();
+  if (lastPopupDate !== today) {
+    popupsToday = 0;
+    lastPopupDate = today;
+  }
+}
+
 const skip = u => !u || u.startsWith('chrome://') || u.startsWith('brave://') ||
-                  u.startsWith('edge://') || u.startsWith('about:') || u.startsWith(PROMPT);
+                  u.startsWith('edge://') || u.startsWith('about:') ||
+                  u.startsWith(TOAST) || u.startsWith(PROMPT);
 
 function getDomain(url) {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
@@ -71,21 +86,26 @@ async function updateBadge() {
 async function init() {
   const s = await chrome.storage.local.get([
     'timeoutMinutes', 'enabled', 'snoozedUntil', 'lastActiveTimes',
-    'lastInteractionTS', 'pendingTabs', 'whitelist', 'snoozeMult'
+    'pendingTabs', 'whitelist', 'snoozeMult', 'tabThreshold',
+    'maxDaily', 'popupsToday', 'lastPopupDate'
   ]);
   timeoutMin = parseInt(s.timeoutMinutes ?? DEF_MIN, 10);
   limitMs = timeoutMin * 60_000;
   enabled = s.enabled ?? true;
   snoozeMult = parseInt(s.snoozeMult ?? DEF_SNOOZE_MULT, 10);
+  tabThreshold = parseInt(s.tabThreshold ?? DEF_THRESHOLD, 10);
+  maxDaily = parseInt(s.maxDaily ?? DEF_MAX_DAILY, 10);
   whitelist = s.whitelist ?? [];
   snoozed = s.snoozedUntil ?? {};
   lastActive = s.lastActiveTimes ?? {};
-  lastInteraction = parseInt(s.lastInteractionTS || 0, 10);
   pending = s.pendingTabs ?? [];
+  popupsToday = parseInt(s.popupsToday || 0, 10);
+  lastPopupDate = s.lastPopupDate || '';
 
+  checkDailyReset();
   await seedNewTabs();
   await purgeClosedIds();
-  await rediscoverPrompt();
+  await rediscoverToast();
 
   chrome.alarms.create(NAME, { delayInMinutes: 1, periodInMinutes: 1 });
   debouncedScan();
@@ -115,16 +135,24 @@ async function purgeClosedIds() {
   if (dirty) saveState();
 }
 
-async function rediscoverPrompt() {
+async function rediscoverToast() {
   if (pWin) return;
   try {
-    const opens = await chrome.tabs.query({ url: PROMPT + '*' });
+    // check for toast or prompt windows
+    let opens = await chrome.tabs.query({ url: TOAST + '*' });
+    if (!opens.length) opens = await chrome.tabs.query({ url: PROMPT + '*' });
     if (opens.length) {
       pWin = opens[0].windowId;
       pTab = opens[0].id;
       for (const tab of opens.slice(1)) try { await chrome.windows.remove(tab.windowId); } catch {}
     }
   } catch {}
+}
+
+/* ---------- tab count (excluding pinned) ---------- */
+async function getOpenTabCount() {
+  const tabs = await chrome.tabs.query({ windowType: 'normal' });
+  return tabs.filter(t => !t.pinned).length;
 }
 
 /* ---------- tab events ---------- */
@@ -153,19 +181,19 @@ chrome.tabs.onRemoved.addListener(id => {
 });
 
 chrome.windows.onRemoved.addListener(w => { if (w === pWin) { pWin = pTab = null; } });
-chrome.windows.onFocusChanged.addListener(w => { if (w === pWin) saveInteraction(); });
 
 /* ---------- debounced scanner ---------- */
 function debouncedScan() {
   if (scanTimer) clearTimeout(scanTimer);
-  scanTimer = setTimeout(scan, 2000);
+  scanTimer = setTimeout(scan, 3000);
 }
 
 async function scan() {
   scanTimer = null;
   if (!enabled) { updateBadge(); return; }
   await purgeClosedIds();
-  await rediscoverPrompt();
+  await rediscoverToast();
+  checkDailyReset();
 
   const now = Date.now();
   const act = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -190,58 +218,89 @@ async function scan() {
       seen.add(id);
     }
   }
-  if (cand.length) await handlePrompt(cand);
+
+  if (cand.length) await handleNotification(cand);
   saveState();
   updateBadge();
 }
 
-/* ---------- prompt logic ---------- */
-async function handlePrompt(tabs) {
-  const now = Date.now();
-  const inCooldown = now - lastInteraction < COOLDOWN;
-
+/* ---------- notification logic ---------- */
+async function handleNotification(tabs) {
+  /* Already showing a toast/prompt? Inject silently */
   if (pWin) {
-    try { await sendToPrompt(tabs, false); }
+    try { await sendToWindow(tabs); }
     catch { pWin = pTab = null; pending.push(...tabs); saveState(); }
     return;
   }
 
-  if (inCooldown) {
+  /* Check tab threshold */
+  const openCount = await getOpenTabCount();
+  if (openCount < tabThreshold) {
     pending.push(...tabs);
     saveState();
     return;
   }
 
-  await ensureSinglePrompt(tabs, true);
-  saveInteraction();
+  /* Check daily limit */
+  if (popupsToday >= maxDaily) {
+    pending.push(...tabs);
+    saveState();
+    return;
+  }
+
+  /* Show toast */
+  await showToast(tabs);
+  popupsToday++;
+  saveState();
 }
 
-function sendToPrompt(tabs, focus) {
+function sendToWindow(tabs) {
   return new Promise((ok, fail) => {
     if (!pTab) { fail(); return; }
     chrome.tabs.sendMessage(pTab, { action: 'addCandidates', tabs }, r => {
       if (chrome.runtime.lastError || !r || !r.ok) { fail(); return; }
-      if (focus) chrome.windows.update(pWin, { focused: true }, ok);
-      else ok();
+      ok();
     });
   });
 }
 
-async function ensureSinglePrompt(tabs, focus) {
-  const opens = await chrome.tabs.query({ url: PROMPT + '*' });
-  if (opens.length > 1) {
-    for (const tab of opens.slice(1)) try { await chrome.windows.remove(tab.windowId); } catch {}
-  }
-  if (pWin) {
-    try { await sendToPrompt(tabs, focus); return; } catch { pWin = pTab = null; }
-  }
-  if (opens.length) {
-    pWin = opens[0].windowId; pTab = opens[0].id;
-    try { await sendToPrompt(tabs, focus); return; } catch { pWin = pTab = null; }
-  }
+/* ---------- toast (small corner window) ---------- */
+async function showToast(tabs) {
+  // Close any existing toast/prompt
+  const existing = [
+    ...(await chrome.tabs.query({ url: TOAST + '*' })),
+    ...(await chrome.tabs.query({ url: PROMPT + '*' }))
+  ];
+  for (const t of existing) try { await chrome.windows.remove(t.windowId); } catch {}
+  pWin = pTab = null;
+
+  // Position: bottom-right of the screen
+  const displays = await chrome.system.display.getInfo();
+  const primary = displays[0] || { workArea: { width: 1920, height: 1080, left: 0, top: 0 } };
+  const wa = primary.workArea;
+  const toastW = 340, toastH = 200;
+  const left = wa.left + wa.width - toastW - 20;
+  const top = wa.top + wa.height - toastH - 20;
+
+  const w = await chrome.windows.create({
+    url: `${TOAST}?tabs=${encodeURIComponent(JSON.stringify(tabs))}`,
+    type: 'popup',
+    width: toastW, height: toastH,
+    left, top,
+    focused: false
+  });
+  if (w?.tabs?.length) { pWin = w.id; pTab = w.tabs[0].id; }
+}
+
+/* ---------- full prompt (from "View Details") ---------- */
+async function openFullPrompt(tabs) {
+  // Close toast
+  if (pWin) try { await chrome.windows.remove(pWin); } catch {}
+  pWin = pTab = null;
+
   const w = await chrome.windows.create({
     url: `${PROMPT}?tabs=${encodeURIComponent(JSON.stringify(tabs))}`,
-    type: 'popup', width: 700, height: 600
+    type: 'popup', width: 700, height: 550
   });
   if (w?.tabs?.length) { pWin = w.id; pTab = w.tabs[0].id; }
 }
@@ -253,16 +312,24 @@ chrome.runtime.onMessage.addListener((m, _, res) => {
     limitMs = timeoutMin * 60_000;
     enabled = m.settings.enabled;
     snoozeMult = m.settings.snoozeMult ?? snoozeMult;
+    tabThreshold = m.settings.tabThreshold ?? tabThreshold;
+    maxDaily = m.settings.maxDaily ?? maxDaily;
     whitelist = m.settings.whitelist ?? whitelist;
     debouncedScan();
     res({ success: true });
     return true;
   }
   if (m.action === 'getSettings') {
-    res({ timeoutMin, enabled, snoozeMult, whitelist });
+    res({ timeoutMin, enabled, snoozeMult, tabThreshold, maxDaily, whitelist, popupsToday });
     return true;
   }
-  if (m.action === 'promptInteracted') { saveInteraction(); res({ ok: true }); return; }
+  if (m.action === 'promptInteracted') { res({ ok: true }); return; }
+
+  if (m.action === 'openDetailedPrompt') {
+    openFullPrompt(m.tabs || pending);
+    res({ ok: true });
+    return true;
+  }
 
   if (m.action === 'closeTabs' || m.action === 'promptCancelled') {
     const now = Date.now();
@@ -281,7 +348,6 @@ chrome.runtime.onMessage.addListener((m, _, res) => {
       saveState();
     }
     pending = [];
-    saveInteraction();
     pWin = pTab = null;
     updateBadge();
     res({ success: true });
